@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import kagglehub
 from src.preprocessor import CustomPreprocessor
 from src.trainer import ModelTrainer
 
@@ -16,7 +17,8 @@ def load_data(file_path = None):
 
 
 def main():
-    data = load_data("data/raw.csv").sample(10000)
+    path = kagglehub.dataset_download("mrdaniilak/russia-real-estate-2021")
+    data = load_data(path).sample(10000)
     print(data.head(5))
     
     target_column = 'price'

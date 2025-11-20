@@ -16,14 +16,14 @@ and general metricks by regions.
 
 ### Iteration 1
 
-1. - [ ] **Data preprocessing** \
+1. - [x] **Data preprocessing** \
 Description: Collect and clean the source data. Remove missing data, remove junk, and prepare
 everything for model training using Pandas.
 
-2. - [ ] **Creating models** \
+2. - [x] **Creating models** \
 Description: Create linear regression, catboost and simple sklearn models
 
-3. - [ ] **Comparison models** \
+3. - [x] **Comparison models** \
 Description: Compare models using standard metricks
 
 ---

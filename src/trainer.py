@@ -8,6 +8,8 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.compose import ColumnTransformer
 from sklearn.metrics import r2_score, mean_absolute_error
 from sklearn.ensemble import RandomForestRegressor
+import matplotlib.pyplot as plt
+
 
 class ModelTrainer:
     """
@@ -79,7 +81,41 @@ class ModelTrainer:
             self.models[model_name] = pipeline
             self.results[model_name] = {'r2_score': r2, 'mae': mae}
         
-        return self.results
+        self.plot_results()
+        
+        results_df = pd.DataFrame(self.results).T
+        results_df['r2_score'] = results_df['r2_score'].round(4)
+        results_df['mae'] = results_df['mae'].round(0)
+        return results_df
+
+
+    def plot_results(self):
+        """
+        Plot the evaluation results of the trained models.
+        """
+        model_names = list(self.results.keys())
+        r2_scores = [self.results[model]['r2_score'] for model in model_names]
+        maes = [self.results[model]['mae'] for model in model_names]
+
+        x = np.arange(len(model_names))
+        width = 0.35
+
+        fig, ax1 = plt.subplots()
+
+        bars1 = ax1.bar(x - width/2, r2_scores, width, label='R2 Score', color='b')
+        ax1.set_ylabel('R2 Score')
+        ax1.set_ylim(0, 1)
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(model_names)
+        ax1.legend(loc='upper left')
+
+        ax2 = ax1.twinx()
+        bars2 = ax2.bar(x + width/2, maes, width, label='MAE', color='r')
+        ax2.set_ylabel('Mean Absolute Error')
+        ax2.legend(loc='upper right')
+
+        plt.title('Model Evaluation Results')
+        plt.show()
 
 
     def get_results(self):

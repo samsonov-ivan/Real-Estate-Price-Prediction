@@ -17,8 +17,7 @@ def load_data(file_path = None):
 
 
 def main():
-    path = kagglehub.dataset_download("mrdaniilak/russia-real-estate-2021")
-    data = load_data(path).sample(10000)
+    data = load_data("data/raw.csv")
     print(data.head(5))
     
     target_column = 'price'

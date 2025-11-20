@@ -10,18 +10,23 @@ def load_data(file_path = None):
     """
 
     if file_path is None:
-        # Default dataset path
         raise ValueError("No file path provided for dataset.")
     
-    return pd.read_csv(file_path)
+    return pd.read_csv(file_path, sep = ';')
 
 
 def main():
-    data = load_data("data/raw.csv")
+    data = load_data("data/raw.csv").sample(10000)
+    print(data.head(5))
     
     target_column = 'price'
     
     preprocessor = CustomPreprocessor()
+
+    rename_dict = {'geo_lat': 'latitude', 'geo_lon': 'longitude'}
+    data = data.rename(columns=rename_dict)
+
+    data = preprocessor.clean_data(data)
     preprocessor.fit(data)
     processed_data = preprocessor.transform(data)
     print("Data preprocessing completed.")
@@ -36,3 +41,6 @@ def main():
 
     print("Model training and evaluation completed.")
     print("Results:" , results)
+
+if __name__ == "__main__":
+    main()

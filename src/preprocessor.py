@@ -5,7 +5,8 @@ from sklearn.base import BaseEstimator, TransformerMixin
 class CustomPreprocessor(BaseEstimator, TransformerMixin):
     """
     A custom preprocessor for handling missing values and scaling numerical features.
-    Parameters:
+    This preprocessor fills missing values for categorical and numerical features,
+    engineers a new feature (distance to city center), and scales numerical features.
     """
 
     def __init__(self, city_center_coords=(55.7558, 37.6173)):

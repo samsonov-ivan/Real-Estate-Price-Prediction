@@ -20,6 +20,7 @@ class ModelTrainer:
         self.models = {}
         self.results = {}
     
+    
     def build_pipeline(self, model, cat_features, num_features):
         """
         Build a machine learning pipeline with preprocessing and the given model.

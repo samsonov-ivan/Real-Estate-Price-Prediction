@@ -65,7 +65,6 @@ class CustomPreprocessor(BaseEstimator, TransformerMixin):
             'kitchen_area': X['kitchen_area'].mean()
         }
 
-        X['living_area'] = X['area'] * 0.6
         return self
     
     def transform(self, X):
@@ -90,12 +89,5 @@ class CustomPreprocessor(BaseEstimator, TransformerMixin):
             X['latitude'], X['longitude'],
             self.city_center_coords[0], self.city_center_coords[1]
         )
-
-        # Scaling numerical features
-        num_features = ['area', 'living_area', 'kitchen_area', 'rooms', 'distance_to_center']
-        for feature in num_features:
-            mean = X[feature].mean()
-            std = X[feature].std()
-            X[feature] = (X[feature] - mean) / std
 
         return X

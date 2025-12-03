@@ -27,7 +27,7 @@ class CustomPreprocessor(BaseEstimator, TransformerMixin):
             None
         """
         self.city_center_coords = city_center_coords
-        self.cat_features: list[str] = ['building_type', 'id_region']
+        self.cat_features: list[str] = ['building_type', 'region']
         self.fill_values_: dict[str, Any] = {}
 
     def clean_data(self, X: pd.DataFrame) -> pd.DataFrame:
@@ -42,8 +42,8 @@ class CustomPreprocessor(BaseEstimator, TransformerMixin):
         """
         # Additional cleaning steps can be added here if necessary
         X = X.copy()
-        if {'latitude', 'longitude'}.issubset(X.columns):
-            X = X.dropna(subset=['latitude', 'longitude'])
+        if {'geo_lat', 'geo_lon'}.issubset(X.columns):
+            X = X.dropna(subset=['geo_lat', 'geo_lon'])
         X = X.replace([np.inf, -np.inf], np.nan)
         for col in self.cat_features:
             if col in X.columns:
@@ -82,13 +82,19 @@ class CustomPreprocessor(BaseEstimator, TransformerMixin):
         Returns:
             CustomPreprocessor: Fitted preprocessor.
         """
-        self.fill_values_ = {
-            'building_type': X['building_type'].mode()[0],
-            'id_region': X['id_region'].mode()[0],
-            'rooms': X['rooms'].median(),
-            'living_area': X['area'].mean() * 0.6,
-            'kitchen_area': X['kitchen_area'].mean()
-        }
+        self.fill_values_ = {}
+        if 'building_type' in X.columns:
+            mode = X['building_type'].mode()
+            self.fill_values_['building_type'] = mode.iloc[0] if not mode.empty else 'unknown'
+        if 'region' in X.columns:
+            mode = X['region'].mode()
+            self.fill_values_['region'] = mode.iloc[0] if not mode.empty else 'unknown'
+        if 'rooms' in X.columns:
+            self.fill_values_['rooms'] = X['rooms'].median()
+        if 'area' in X.columns:
+            self.fill_values_['living_area'] = X['area'].mean() * 0.6
+        if 'kitchen_area' in X.columns:
+            self.fill_values_['kitchen_area'] = X['kitchen_area'].mean()
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
@@ -104,7 +110,7 @@ class CustomPreprocessor(BaseEstimator, TransformerMixin):
         X = X.copy()
         # Fill missing values
         for feature, fill_value in self.fill_values_.items():
-            if feature in self.cat_features:
+            if feature in X.columns:
                 X[feature] = X[feature].fillna(fill_value)
         # Feature engineering: distance to city center
         def haversine(lat1: np.ndarray, lon1: np.ndarray, lat2: float, lon2: float) -> np.ndarray:
@@ -127,8 +133,9 @@ class CustomPreprocessor(BaseEstimator, TransformerMixin):
                  np.cos(np.radians(lat1)) * np.cos(np.radians(lat2)) * np.sin(dlon / 2) ** 2)
             c = 2 * np.arcsin(np.sqrt(a))
             return R * c
-        X['distance_to_center'] = haversine(
-            X['latitude'], X['longitude'],
-            self.city_center_coords[0], self.city_center_coords[1]
-        )
+        if 'geo_lat' in X.columns and 'geo_lon' in X.columns:
+            X['distance_to_center'] = haversine(
+                X['geo_lat'], X['geo_lon'],
+                self.city_center_coords[0], self.city_center_coords[1]
+            )
         return X

@@ -4,7 +4,7 @@ Module for training and evaluating machine learning models for regression tasks.
 
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from catboost import CatBoostRegressor
 from sklearn.pipeline import Pipeline
@@ -13,23 +13,17 @@ from sklearn.compose import ColumnTransformer
 from sklearn.metrics import r2_score, mean_absolute_error
 from sklearn.ensemble import RandomForestRegressor
 import matplotlib.pyplot as plt
-from typing import Dict, Any, List
+from typing import Dict, List
+from dataclasses import dataclass, field
 
 
+@dataclass
 class ModelTrainer:
     """
     A class to handle model training, evaluation, and selection for regression tasks.
     """
-
-    def __init__(self) -> None:
-        """
-        Initialize the trainer.
-
-        Returns:
-            None
-        """
-        self.models: Dict[str, Pipeline] = {}
-        self.results: Dict[str, Dict[str, float]] = {}
+    models: Dict[str, Pipeline] = field(default_factory=dict)
+    results: Dict[str, Dict[str, float]] = field(default_factory=dict)
 
     def build_pipeline(self, model: str, cat_features: List[str], num_features: List[str]) -> Pipeline:
         """

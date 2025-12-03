@@ -13,7 +13,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.metrics import r2_score, mean_absolute_error
 from sklearn.ensemble import RandomForestRegressor
 import matplotlib.pyplot as plt
-from typing import Dict, Any, List
+from typing import Dict, List
 from dataclasses import dataclass, field
 import os
 

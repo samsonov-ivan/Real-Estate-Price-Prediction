@@ -10,12 +10,12 @@ from catboost import CatBoostRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.compose import ColumnTransformer
-from sklearn.metrics import r2_score, mean_absolute_error
 from sklearn.ensemble import RandomForestRegressor
 import matplotlib.pyplot as plt
 from typing import Dict, List
 from dataclasses import dataclass, field
 import os
+from src.preprocessor import CustomPreprocessor
 
 
 @dataclass
@@ -38,37 +38,51 @@ class ModelTrainer:
         Returns:
             Pipeline: Built pipeline.
         """
+        custom_preprocessor = CustomPreprocessor()
+
         if model == 'catboost':
             preprocessor = ColumnTransformer(
                 transformers=[
                     ('num', StandardScaler(), num_features),
+                    # CatBoost не должен кодировать категориальные фичи!
+                    # Мы их передаем как есть.
                 ],
                 remainder='passthrough'
             )
             cat_model = CatBoostRegressor(verbose=0)
+
             pipeline = Pipeline(steps=[
+                ('custom_preprocessor', custom_preprocessor),
                 ('preprocessor', preprocessor),
                 ('model', cat_model)
             ])
-            cat_indices = list(range(len(num_features), len(num_features) + len(cat_features)))
+
+            # Индексы категорий идут после числовых
+            cat_indices = list(range(len(num_features)))
             pipeline.named_steps['model'].set_params(cat_features=cat_indices)
+
         else:
+            # Для sklearn-моделей: и custom, и ColumnTransformer
             preprocessor = ColumnTransformer(
                 transformers=[
                     ('num', StandardScaler(), num_features),
                     ('cat', OneHotEncoder(handle_unknown='ignore'), cat_features)
                 ]
             )
+
             if model == 'linear_regression':
                 model_obj = LinearRegression()
             elif model == 'random_forest':
                 model_obj = RandomForestRegressor()
             else:
                 raise ValueError(f"Unsupported model type: {model}")
+
             pipeline = Pipeline(steps=[
+                ('custom_preprocessor', custom_preprocessor),
                 ('preprocessor', preprocessor),
                 ('model', model_obj)
             ])
+
         return pipeline
 
     def train_and_evaluate(self, df: pd.DataFrame, target_column: str) -> pd.DataFrame:
@@ -82,6 +96,22 @@ class ModelTrainer:
         Returns:
             pd.DataFrame: Results DataFrame.
         """
+        if len(df.columns) == 1:
+            col = df.columns[0]
+            first_row = df[col].iloc[0]
+            if ';' in first_row:
+                sep = ';'
+            elif ',' in first_row:
+                sep = ','
+            else:
+                raise ValueError("Unknown separator in data")
+            header = col.split(sep)
+            data_df = pd.DataFrame(df[col].str.split(sep, expand=True), columns=header)
+            df = data_df
+
+        for col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='ignore')
+
         X = df.drop(columns=[target_column])
         y = df[target_column]
 
@@ -100,7 +130,7 @@ class ModelTrainer:
             mae_mean = -cv_neg_mae.mean()
             mae_std = cv_neg_mae.std()
             rmse_mean = np.sqrt(-cv_neg_mse.mean())
-            rmse_std = np.sqrt(cv_neg_mse.std())  # Approximate std for RMSE
+            rmse_std = np.sqrt(cv_neg_mse.std())
 
             self.results[model_name] = {
                 'r2_mean': r2_mean,

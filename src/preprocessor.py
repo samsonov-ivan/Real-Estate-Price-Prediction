@@ -1,3 +1,7 @@
+"""
+Module for data preprocessing, including handling missing values and feature engineering.
+"""
+
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin

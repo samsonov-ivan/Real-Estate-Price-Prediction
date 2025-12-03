@@ -13,7 +13,7 @@ def load_data(file_path = None):
     if file_path is None:
         raise ValueError("No file path provided for dataset.")
     
-    return pd.read_csv(file_path, sep = ';')
+    return pd.read_csv(file_path)
 
 
 def main():

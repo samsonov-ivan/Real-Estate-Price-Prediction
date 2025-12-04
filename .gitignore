@@ -30,3 +30,4 @@ MANIFEST
 .idea
 catboost_info/
 data/raw.csv
+.vscode/

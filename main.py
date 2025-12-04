@@ -25,7 +25,7 @@ def main():
 
     rename_dict = {'geo_lat': 'latitude', 'geo_lon': 'longitude'}
     data = data.rename(columns=rename_dict)
-    
+
     data = preprocessor.clean_data(data)
     preprocessor.fit(data)
     processed_data = preprocessor.transform(data)

@@ -141,29 +141,3 @@ class ModelTrainer:
             pd.DataFrame: Results DataFrame.
         """
         return pd.DataFrame(self.results)
-
-    def generate_report(self, output_dir: str = 'reports') -> None:
-        """
-        Generate a Markdown report with model comparison table and graph.
-
-        Args:
-            output_dir (str): Directory to save the report.
-
-        Returns:
-            None
-        """
-        os.makedirs(output_dir, exist_ok=True)
-        self.plot_results(save=True, output_dir=output_dir)
-
-        results_df = pd.DataFrame(self.results).T
-        results_df['r2_score'] = results_df['r2_score'].round(4)
-        results_df['mae'] = results_df['mae'].round(0)
-
-        md_content = '# Model Comparison\n\n'
-        md_content += results_df.to_markdown(index=True) + '\n\n'
-        md_content += '![Model Evaluation Results](./model_comparison.png)\n'
-
-        with open(os.path.join(output_dir, 'model_comparison.md'), 'w') as f:
-            f.write(md_content)
-        
-        print(f"Report generated: {os.path.join(output_dir, 'model_comparison.md')}")

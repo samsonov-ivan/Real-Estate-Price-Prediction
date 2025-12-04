@@ -2,20 +2,20 @@
 Module for training and evaluating machine learning models for regression tasks.
 """
 
+import os
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from catboost import CatBoostRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.compose import ColumnTransformer
+from sklearn.metrics import r2_score, mean_absolute_error
 from sklearn.ensemble import RandomForestRegressor
 import matplotlib.pyplot as plt
 from typing import Dict, List
 from dataclasses import dataclass, field
-import os
-from src.preprocessor import CustomPreprocessor
 
 
 @dataclass
@@ -38,118 +38,66 @@ class ModelTrainer:
         Returns:
             Pipeline: Built pipeline.
         """
-        custom_preprocessor = CustomPreprocessor()
-
+        preprocessor = ColumnTransformer(
+            transformers=[
+                ('num', StandardScaler(), num_features),
+                ('cat', OneHotEncoder(handle_unknown='ignore'), cat_features)
+            ]
+        )
         if model == 'catboost':
-            preprocessor = ColumnTransformer(
-                transformers=[
-                    ('num', StandardScaler(), num_features),
-                    # CatBoost не должен кодировать категориальные фичи!
-                    # Мы их передаем как есть.
-                ],
-                remainder='passthrough'
-            )
             cat_model = CatBoostRegressor(verbose=0)
-
             pipeline = Pipeline(steps=[
-                ('custom_preprocessor', custom_preprocessor),
                 ('preprocessor', preprocessor),
                 ('model', cat_model)
             ])
-
-            # Индексы категорий идут после числовых
-            cat_indices = list(range(len(num_features)))
-            pipeline.named_steps['model'].set_params(cat_features=cat_indices)
-
-        else:
-            # Для sklearn-моделей: и custom, и ColumnTransformer
-            preprocessor = ColumnTransformer(
-                transformers=[
-                    ('num', StandardScaler(), num_features),
-                    ('cat', OneHotEncoder(handle_unknown='ignore'), cat_features)
-                ]
-            )
-
-            if model == 'linear_regression':
-                model_obj = LinearRegression()
-            elif model == 'random_forest':
-                model_obj = RandomForestRegressor()
-            else:
-                raise ValueError(f"Unsupported model type: {model}")
-
+        elif model == 'linear_regression':
+            lin_model = LinearRegression()
             pipeline = Pipeline(steps=[
-                ('custom_preprocessor', custom_preprocessor),
                 ('preprocessor', preprocessor),
-                ('model', model_obj)
+                ('model', lin_model)
             ])
-
+        elif model == 'random_forest':
+            rf_model = RandomForestRegressor()
+            pipeline = Pipeline(steps=[
+                ('preprocessor', preprocessor),
+                ('model', rf_model)
+            ])
+        else:
+            raise ValueError(f"Unsupported model type: {model}")
         return pipeline
 
-    def train_and_evaluate(self, df: pd.DataFrame, target_column: str) -> pd.DataFrame:
+    def train_and_evaluate(self, df: pd.DataFrame, target_column: str, test_size: float = 0.2, random_state: int = 42) -> pd.DataFrame:
         """
-        Train and evaluate models on the provided DataFrame using cross-validation.
+        Train and evaluate models on the provided DataFrame.
 
         Args:
             df (pd.DataFrame): Input data.
             target_column (str): Target column name.
+            test_size (float): Test split size.
+            random_state (int): Random seed.
 
         Returns:
             pd.DataFrame: Results DataFrame.
         """
-        if len(df.columns) == 1:
-            col = df.columns[0]
-            first_row = df[col].iloc[0]
-            if ';' in first_row:
-                sep = ';'
-            elif ',' in first_row:
-                sep = ','
-            else:
-                raise ValueError("Unknown separator in data")
-            header = col.split(sep)
-            data_df = pd.DataFrame(df[col].str.split(sep, expand=True), columns=header)
-            df = data_df
-
-        for col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='ignore')
-
         X = df.drop(columns=[target_column])
         y = df[target_column]
-
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=random_state
+        )
         cat_features = X.select_dtypes(include=['object', 'category']).columns.tolist()
         num_features = X.select_dtypes(include=['number']).columns.tolist()
-
         for model_name in ['linear_regression', 'catboost', 'random_forest']:
             pipeline = self.build_pipeline(model_name, cat_features, num_features)
-
-            cv_r2 = cross_val_score(pipeline, X, y, cv=5, scoring='r2')
-            cv_neg_mae = cross_val_score(pipeline, X, y, cv=5, scoring='neg_mean_absolute_error')
-            cv_neg_mse = cross_val_score(pipeline, X, y, cv=5, scoring='neg_mean_squared_error')
-
-            r2_mean = cv_r2.mean()
-            r2_std = cv_r2.std()
-            mae_mean = -cv_neg_mae.mean()
-            mae_std = cv_neg_mae.std()
-            rmse_mean = np.sqrt(-cv_neg_mse.mean())
-            rmse_std = np.sqrt(cv_neg_mse.std())
-
-            self.results[model_name] = {
-                'r2_mean': r2_mean,
-                'r2_std': r2_std,
-                'mae_mean': mae_mean,
-                'mae_std': mae_std,
-                'rmse_mean': rmse_mean,
-                'rmse_std': rmse_std
-            }
-
-            # Fit on full data
-            pipeline.fit(X, y)
+            pipeline.fit(X_train, y_train)
+            y_pred = pipeline.predict(X_test)
+            r2 = r2_score(y_test, y_pred)
+            mae = mean_absolute_error(y_test, y_pred)
             self.models[model_name] = pipeline
-
+            self.results[model_name] = {'r2_score': r2, 'mae': mae}
         self.plot_results()
-
         results_df = pd.DataFrame(self.results).T
-        results_df[['r2_mean', 'r2_std']] = results_df[['r2_mean', 'r2_std']].round(4)
-        results_df[['mae_mean', 'mae_std', 'rmse_mean', 'rmse_std']] = results_df[['mae_mean', 'mae_std', 'rmse_mean', 'rmse_std']].round(0)
+        results_df['r2_score'] = results_df['r2_score'].round(4)
+        results_df['mae'] = results_df['mae'].round(0)
         return results_df
 
     def plot_results(self, save: bool = False, output_dir: str = '.') -> None:
@@ -164,34 +112,26 @@ class ModelTrainer:
             None
         """
         model_names = list(self.results.keys())
-        r2_scores = [self.results[model]['r2_mean'] for model in model_names]
-        r2_stds = [self.results[model]['r2_std'] for model in model_names]
-        maes = [self.results[model]['mae_mean'] for model in model_names]
-        mae_stds = [self.results[model]['mae_std'] for model in model_names]
-        rmses = [self.results[model]['rmse_mean'] for model in model_names]
-        rmse_stds = [self.results[model]['rmse_std'] for model in model_names]
-
+        r2_scores = [self.results[model]['r2_score'] for model in model_names]
+        maes = [self.results[model]['mae'] for model in model_names]
         x = np.arange(len(model_names))
-        width = 0.25
-
+        width = 0.35
         fig, ax1 = plt.subplots()
-        bars1 = ax1.bar(x - width, r2_scores, width, yerr=r2_stds, capsize=5, label='R2 Score', color='b')
+        bars1 = ax1.bar(x - width/2, r2_scores, width, label='R2 Score', color='b')
         ax1.set_ylabel('R2 Score')
         ax1.set_ylim(0, 1)
         ax1.set_xticks(x)
         ax1.set_xticklabels(model_names)
         ax1.legend(loc='upper left')
-
         ax2 = ax1.twinx()
-        bars2 = ax2.bar(x, maes, width, yerr=mae_stds, capsize=5, label='MAE', color='r')
-        bars3 = ax2.bar(x + width, rmses, width, yerr=rmse_stds, capsize=5, label='RMSE', color='g')
-        ax2.set_ylabel('Error')
+        bars2 = ax2.bar(x + width/2, maes, width, label='MAE', color='r')
+        ax2.set_ylabel('Mean Absolute Error')
         ax2.legend(loc='upper right')
-
         plt.title('Model Evaluation Results')
         if save:
+            os.makedirs(output_dir, exist_ok=True)
             plt.savefig(os.path.join(output_dir, 'model_comparison.png'))
-        plt.show()
+        plt.close()
 
     def get_results(self) -> pd.DataFrame:
         """
@@ -201,3 +141,29 @@ class ModelTrainer:
             pd.DataFrame: Results DataFrame.
         """
         return pd.DataFrame(self.results)
+
+    def generate_report(self, output_dir: str = 'reports') -> None:
+        """
+        Generate a Markdown report with model comparison table and graph.
+
+        Args:
+            output_dir (str): Directory to save the report.
+
+        Returns:
+            None
+        """
+        os.makedirs(output_dir, exist_ok=True)
+        self.plot_results(save=True, output_dir=output_dir)
+
+        results_df = pd.DataFrame(self.results).T
+        results_df['r2_score'] = results_df['r2_score'].round(4)
+        results_df['mae'] = results_df['mae'].round(0)
+
+        md_content = '# Model Comparison\n\n'
+        md_content += results_df.to_markdown(index=True) + '\n\n'
+        md_content += '![Model Evaluation Results](./model_comparison.png)\n'
+
+        with open(os.path.join(output_dir, 'model_comparison.md'), 'w') as f:
+            f.write(md_content)
+        
+        print(f"Report generated: {os.path.join(output_dir, 'model_comparison.md')}")

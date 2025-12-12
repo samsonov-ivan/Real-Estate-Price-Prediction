@@ -1,48 +1,100 @@
+"""
+Main entry point for the Real Estate Price Prediction project.
+
+This script orchestrates the entire workflow:
+1. Data Loading.
+2. pipeline Construction (via Trainer).
+3. Model Training & Evaluation.
+4. Reporting.
+"""
+
+import sys
 import pandas as pd
-import numpy as np
-import kagglehub
-from typing import Optional
-from src.preprocessor import CustomPreprocessor
-from src.trainer import ModelTrainer
+from pathlib import Path
+
+from src.trainer import Trainer
+from src.utils import setup_logging
+
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+REPORTS_DIR = BASE_DIR / "reports"
+
+RAW_DATA_FILE = "raw_sample.csv"
+TARGET_COLUMN = "price"
+
+MOSCOW_CENTER = (55.7558, 37.6173)
+
+MODELS_TO_RUN = ["linear_regression", "catboost", "random_forest"]
 
 
-def load_data(file_path: Optional[str] = None) -> pd.DataFrame:
-    """Load dataset from a CSV file and return a DataFrame."""
+def load_data(file_name: str) -> pd.DataFrame:
+    """
+    Loads dataset from a CSV file.
 
-    if file_path is None:
-        raise ValueError("No file path provided for dataset.")
+    Args:
+        file_name (str): Name of the file in the data directory.
 
+    Returns:
+        pd.DataFrame: Loaded data.
+    """
+    file_path = DATA_DIR / file_name
+    if not file_path.exists():
+        raise FileNotFoundError(f"Dataset not found at: {file_path}")
+    
+    print(f"Loading data from {file_path}...")
     return pd.read_csv(file_path)
 
 
 def main():
-    data = load_data("data/raw_sample.csv").sample(n=10000, random_state=42)
+    """
+    Main execution function.
+    """
+    logger = setup_logging()
+    logger.info("Starting Real Estate Price Prediction pipeline...")
+
+    try:
+        data = load_data(RAW_DATA_FILE)
+    except FileNotFoundError as e:
+        logger.error(e)
+        sys.exit(1)
+    
+    logger.info(f"Data loaded successfully. Shape: {data.shape}")
     print(data.head(5))
-    
-    target_column = 'price'
-    
-    preprocessor = CustomPreprocessor()
 
     rename_dict = {'geo_lat': 'latitude', 'geo_lon': 'longitude'}
     data = data.rename(columns=rename_dict)
+    logger.info("Column renaming completed.")
 
-    data = preprocessor.clean_data(data)
-    preprocessor.fit(data)
-    processed_data = preprocessor.transform(data)
-    print("Data preprocessing completed.")
-    print("Size of processed data:", processed_data.shape)
-    print("Columns in processed data:", processed_data.columns.tolist())
-    print(processed_data.head())
+    trainer = Trainer(
+        df=data,
+        target_col=TARGET_COLUMN,
+        center_coords=MOSCOW_CENTER
+    )
 
-    trainer = ModelTrainer()
-
+    logger.info(f"Starting comparison for models: {MODELS_TO_RUN}")
     
-    results = trainer.train_and_evaluate(processed_data, target_column)
+    results = trainer.run_comparison(
+        model_names=MODELS_TO_RUN,
+        test_size=0.2
+    )
 
-    print("Model training and evaluation completed.")
-    print("Results:" , results)
+    logger.info("Model training and evaluation completed.")
     
-    trainer.generate_report(output_dir='reports')
+    print("\n" + "="*50)
+    print("FINAL RESULTS")
+    print("="*50)
+    print(results)
+    print("="*50 + "\n")
+
+    report_path = REPORTS_DIR / "final_report.csv"
+    
+    results.to_csv(report_path, index=False)
+    logger.info(f"Results saved to {report_path}")
+    
+    if not results.empty:
+        best_model = results.sort_values(by="r2_score", ascending=False).iloc[0]
+        logger.info(f"Best model based on R2 Score: {best_model['model_name']} (R2: {best_model['r2_score']:.4f})")
+
 
 if __name__ == "__main__":
     main()

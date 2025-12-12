@@ -9,6 +9,7 @@ This script orchestrates the entire workflow:
 """
 
 import sys
+import numpy as np
 import pandas as pd
 from pathlib import Path
 
@@ -57,7 +58,9 @@ def main():
     except FileNotFoundError as e:
         logger.error(e)
         sys.exit(1)
-    
+
+    # data = data.sample(n=50000, random_state=42)
+    data['price'] = np.log1p(data['price'])
     logger.info(f"Data loaded successfully. Shape: {data.shape}")
     print(data.head(5))
 
@@ -92,7 +95,7 @@ def main():
     logger.info(f"Results saved to {report_path}")
     
     trainer.plot_metrics(output_dir=REPORTS_DIR)
-    
+
     if not results.empty:
         best_model = results.sort_values(by="r2_score", ascending=False).iloc[0]
         logger.info(f"Best model based on R2 Score: {best_model['model_name']} (R2: {best_model['r2_score']:.4f})")

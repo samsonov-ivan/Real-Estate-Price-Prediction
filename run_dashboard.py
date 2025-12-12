@@ -19,7 +19,7 @@ def main() -> None:
     state.load_data("data/raw_sample.csv") 
     
     print("Starting Dash Server")
-    app.run_server(debug=True, port=8050)
+    app.run(debug=True, port=8050)
 
 if __name__ == "__main__":
     main()

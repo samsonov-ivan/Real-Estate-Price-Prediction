@@ -58,9 +58,9 @@ def register_callbacks(app: Dash) -> None:
          State("op-dropdown", "value"),
          State("col-b-dropdown", "value"),
          State("new-col-name", "value")],
-        prevent_initial_call=False
+        prevent_initial_call=True
     )
-    
+
     def update_all_metrics(
         viz_col: str, 
         n_clicks: int, 

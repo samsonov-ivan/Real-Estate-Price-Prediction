@@ -1,8 +1,5 @@
 """
-UI Components Module.
-
-This module contains functions that return reusable Dash/Bootstrap components,
-such as KPI cards, the feature creation sidebar, and graph wrappers.
+UI Components Module
 """
 
 from dash import dcc, html
@@ -36,7 +33,8 @@ def feature_creation_panel() -> dbc.Card:
     Creates the Feature Engineering sidebar panel.
 
     This panel includes dropdowns for selecting columns and operations
-    to generate new features dynamically.
+    to generate new features dynamically. It supports both binary operations
+    (requiring two columns) and unary operations (requiring one column).
 
     Returns:
         dbc.Card: A Bootstrap card component for the sidebar.
@@ -44,28 +42,37 @@ def feature_creation_panel() -> dbc.Card:
     return dbc.Card([
         dbc.CardHeader("Feature Lab"),
         dbc.CardBody([
-            html.Label("Column A", className="fw-bold"),
+            html.Label("Column A (Main)", className="fw-bold"),
             dcc.Dropdown(id="col-a-dropdown", className="mb-2", clearable=False),
             
             html.Label("Operation", className="fw-bold"),
             dcc.Dropdown(
                 id="op-dropdown",
                 options=[
-                    {"label": "Add", "value": "add"},
-                    {"label": "Subtract", "value": "sub"},
-                    {"label": "Multiply", "value": "mul"},
-                    {"label": "Divide", "value": "div"},
+                    {"label": "Add (A + B)", "value": "add"},
+                    {"label": "Subtract (A - B)", "value": "sub"},
+                    {"label": "Multiply (A * B)", "value": "mul"},
+                    {"label": "Divide (A / B)", "value": "div"},
+                    {"label": "Square (A^2)", "value": "square"},
+                    {"label": "Square Root (sqrt(A))", "value": "sqrt"},
+                    {"label": "Logarithm (log(1+A))", "value": "log"},
+                    {"label": "Standardize (Z-Score)", "value": "zscore"},
                 ],
                 value="add",
                 className="mb-2",
                 clearable=False
             ),
             
-            html.Label("Column B", className="fw-bold"),
-            dcc.Dropdown(id="col-b-dropdown", className="mb-2", clearable=False),
+            html.Label("Column B (Optional)", className="fw-bold"),
+            dcc.Dropdown(
+                id="col-b-dropdown", 
+                className="mb-2", 
+                clearable=False,
+                placeholder="Select second column..."
+            ),
             
             html.Label("New Feature Name", className="fw-bold"),
-            dbc.Input(id="new-col-name", placeholder="e.g. price_per_meter", className="mb-3"),
+            dbc.Input(id="new-col-name", placeholder="e.g. price_squared", className="mb-3"),
             
             dbc.Button("Apply Transformation", id="create-btn", color="primary", className="w-100"),
             html.Div(id="creation-status", className="mt-2 small")
@@ -92,7 +99,7 @@ def correlation_heatmap(df: pd.DataFrame) -> dcc.Graph:
         color_continuous_scale="RdBu_r",
         title="Numeric Feature Correlation"
     )
-    fig.update_layout(margin=dict(l=0, r=0, t=30, b=0))
+    fig.update_layout(margin=dict(l=0, r=0, t=30, b=0), height=700)
     return dcc.Graph(id="corr-graph", figure=fig)
 
 
@@ -107,19 +114,20 @@ def map_visualization(df: pd.DataFrame) -> dcc.Graph:
         dcc.Graph: A Dash Graph component with the map.
     """
     if 'latitude' in df.columns and 'longitude' in df.columns:
-        plot_df = df.head(500)
+        plot_df = df.sample(min(len(df), 2000), random_state=42)
         
         fig = px.scatter_mapbox(
             plot_df, 
             lat="latitude", lon="longitude", 
             color="price", size="area",
             color_continuous_scale=px.colors.cyclical.IceFire, 
-            size_max=15, zoom=9, 
+            size_max=20,
+            zoom=10,
             mapbox_style="open-street-map",
             title="Real Estate Geography"
         )
-        fig.update_layout(margin={"r":0,"t":30,"l":0,"b":0})
+        fig.update_layout(margin={"r":0,"t":30,"l":0,"b":0}, height=800)
     else:
         fig = px.scatter(title="Coordinates (latitude/longitude) not found in dataset")
         
-    return dcc.Graph(id="map-graph", figure=fig, style={"height": "400px"})
+    return dcc.Graph(id="map-graph", figure=fig)

@@ -3,6 +3,7 @@ Callback Logic Module.
 """
 
 import pandas as pd
+import numpy as np
 import plotly.express as px
 from dash import Input, Output, State, callback_context, Dash
 from typing import Tuple, List, Any
@@ -42,6 +43,24 @@ def register_callbacks(app: Dash) -> None:
         return options, options, all_options, default_num, default_viz
 
     @app.callback(
+        Output("col-b-dropdown", "disabled"),
+        Input("op-dropdown", "value")
+    )
+    def toggle_col_b(op: str) -> bool:
+        """
+        Disables the second column dropdown if the selected operation
+        is unary (requires only one operand).
+
+        Args:
+            op (str): The selected operation value.
+
+        Returns:
+            bool: True if Column B should be disabled, False otherwise.
+        """
+        unary_ops = ["square", "sqrt", "log", "zscore"]
+        return op in unary_ops
+
+    @app.callback(
         [Output("metric-price", "children"),
          Output("metric-count", "children"),
          Output("metric-features", "children"),
@@ -60,7 +79,6 @@ def register_callbacks(app: Dash) -> None:
          State("new-col-name", "value")],
         prevent_initial_call=True
     )
-
     def update_all_metrics(
         viz_col: str, 
         n_clicks: int, 
@@ -72,11 +90,9 @@ def register_callbacks(app: Dash) -> None:
         """
         Main callback that handles both feature engineering and visual updates.
 
-        1. Checks if the 'Create Feature' button was clicked.
-        2. Applies mathematical operations to create a new column if valid.
-        3. Updates KPIs (Average Price, Count).
-        4. Updates Graphs (Histogram, Map, Heatmap).
-        5. Refreshes dropdown options to include the new feature.
+        1. Checks triggers.
+        2. Applies mathematical operations (binary or unary) to create features.
+        3. Updates KPIs and Graphs.
         """
         ctx = callback_context
         trigger = ctx.triggered[0]["prop_id"].split(".")[0]
@@ -87,7 +103,13 @@ def register_callbacks(app: Dash) -> None:
              return "0", "0", "0", {}, {}, {}, "No Data", [], [], []
 
         if trigger == "create-btn" and n_clicks:
-            if col_a and col_b and new_name and op:
+            unary_ops = ["square", "sqrt", "log", "zscore"]
+            is_valid = (col_a and new_name and op)
+            
+            if op not in unary_ops and not col_b:
+                is_valid = False
+
+            if is_valid:
                 try:
                     if op == "add": 
                         df[new_name] = df[col_a] + df[col_b]
@@ -96,16 +118,26 @@ def register_callbacks(app: Dash) -> None:
                     elif op == "mul": 
                         df[new_name] = df[col_a] * df[col_b]
                     elif op == "div": 
-                        df[new_name] = df[col_a] / (df[col_b] + 1e-9)
+                        df[new_name] = df[col_a] / (df[col_b] + 1e-9)                    
+                    elif op == "square":
+                        df[new_name] = df[col_a] ** 2
+                    elif op == "sqrt":
+                        df[new_name] = np.sqrt(np.abs(df[col_a]))
+                    elif op == "log":
+                        df[new_name] = np.log1p(np.abs(df[col_a]))
+                    elif op == "zscore":
+                        mean = df[col_a].mean()
+                        std = df[col_a].std()
+                        df[new_name] = (df[col_a] - mean) / (std + 1e-9)
                     
                     state.df = df
-                    status_msg = f"Feature '{new_name}' created!"
+                    status_msg = f"Feature '{new_name}' created successfully."
                 except Exception as e:
                     status_msg = f"Error: {str(e)}"
             else:
-                status_msg = "Fill all fields"
+                status_msg = "Please fill all required fields."
 
-        avg_price = f"{df['price'].mean():,.0f} ₽" if 'price' in df.columns else "N/A"
+        avg_price = f"{df['price'].mean():,.0f} RUB" if 'price' in df.columns else "N/A"
         
         if viz_col and viz_col in df.columns:
             if pd.api.types.is_numeric_dtype(df[viz_col]):
@@ -120,17 +152,18 @@ def register_callbacks(app: Dash) -> None:
                     title=f"Top 15 {viz_col}", 
                     template="plotly_white"
                 )
+            fig_dist.update_layout(height=500)
         else:
             fig_dist = px.histogram(template="plotly_white")
 
         if {'latitude', 'longitude', 'price', 'area'}.issubset(df.columns):
-            plot_df = df.sample(min(len(df), 1000), random_state=42)
+            plot_df = df.sample(min(len(df), 2000), random_state=42)
             fig_map = px.scatter_mapbox(
                 plot_df, lat="latitude", lon="longitude", color="price", size="area",
-                color_continuous_scale="Viridis", size_max=12, zoom=10, 
-                mapbox_style="open-street-map", height=450
+                color_continuous_scale="Viridis", size_max=20, zoom=10, 
+                mapbox_style="open-street-map"
             )
-            fig_map.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+            fig_map.update_layout(margin={"r":0,"t":30,"l":0,"b":0}, height=800)
         else:
             fig_map = px.scatter(title="Coordinates missing")
 
@@ -139,6 +172,7 @@ def register_callbacks(app: Dash) -> None:
             corr, text_auto=".1f", aspect="auto", 
             color_continuous_scale="RdBu_r"
         )
+        fig_corr.update_layout(height=700)
 
         num_cols = df.select_dtypes(include='number').columns
         opts_num = [{"label": c, "value": c} for c in num_cols]
@@ -147,4 +181,3 @@ def register_callbacks(app: Dash) -> None:
         return (avg_price, str(len(df)), str(df.shape[1]), 
                 fig_dist, fig_map, fig_corr, status_msg,
                 opts_num, opts_num, opts_all)
-    

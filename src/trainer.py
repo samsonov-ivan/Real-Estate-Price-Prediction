@@ -2,9 +2,13 @@
 Module for managing the model training and evaluation process.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import List
+from pathlib import Path
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
@@ -120,3 +124,51 @@ class Trainer:
                 print(f"Error training {name}: {e}")
 
         return pd.DataFrame([vars(r) for r in self.results])
+
+    def plot_metrics(self, output_dir: Path) -> None:
+        """
+        Generate and save plot of comparision models side-by-side.
+
+        Args:
+            output_dir (Path): Path to plot saved folder.
+        """
+        if not self.results:
+            print("No results to plot.")
+            return
+
+        df_res = pd.DataFrame([asdict(r) for r in self.results])
+        output_dir.mkdir(parents=True, exist_ok=True)
+        save_path = output_dir / "model_comparison.png" 
+
+        sns.set_theme(style="whitegrid")
+        
+        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+        ax1 = axes[0]
+        sns.barplot(
+            data=df_res, x='model_name', y='r2_score', 
+            ax=ax1, palette="viridis", alpha=0.8
+        )
+        ax1.set_title('Сравнение метрики R2 Score', fontsize=12, fontweight='bold')
+        ax1.set_ylabel('R2 Score', fontweight='bold')
+        ax1.set_xlabel('Название модели')
+        ax1.set_ylim(0, 1.0)
+        ax1.tick_params(axis='x', rotation=45) 
+
+        ax2 = axes[1]
+        sns.barplot(
+            data=df_res, x='model_name', y='mae', 
+            ax=ax2, palette="magma", alpha=0.8
+        )
+        ax2.set_title('Сравнение метрики MAE (Mean Absolute Error)', fontsize=12, fontweight='bold')
+        ax2.set_ylabel('Mean Absolute Error (MAE)', fontweight='bold')
+        ax2.set_xlabel('Название модели')
+        ax2.tick_params(axis='x', rotation=45) 
+        
+        fig.suptitle('Сравнение моделей: R2 Score vs MAE', fontsize=16, y=1.05) 
+
+        plt.tight_layout()
+        
+        plt.savefig(save_path, dpi=300)
+        plt.close()
+        print(f"Comparison plot saved to {save_path}")

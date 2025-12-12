@@ -91,6 +91,8 @@ def main():
     results.to_csv(report_path, index=False)
     logger.info(f"Results saved to {report_path}")
     
+    trainer.plot_metrics(output_dir=REPORTS_DIR)
+    
     if not results.empty:
         best_model = results.sort_values(by="r2_score", ascending=False).iloc[0]
         logger.info(f"Best model based on R2 Score: {best_model['model_name']} (R2: {best_model['r2_score']:.4f})")

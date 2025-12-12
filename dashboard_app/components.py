@@ -1,11 +1,13 @@
 """
-UI Components Module
+UI Components Module.
 """
 
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 import plotly.express as px
 import pandas as pd
+
+MOSCOW_COORDS = {"lat": 55.7558, "lon": 37.6173}
 
 
 def kpi_card(title: str, value_id: str) -> dbc.Card:
@@ -31,10 +33,6 @@ def kpi_card(title: str, value_id: str) -> dbc.Card:
 def feature_creation_panel() -> dbc.Card:
     """
     Creates the Feature Engineering sidebar panel.
-
-    This panel includes dropdowns for selecting columns and operations
-    to generate new features dynamically. It supports both binary operations
-    (requiring two columns) and unary operations (requiring one column).
 
     Returns:
         dbc.Card: A Bootstrap card component for the sidebar.
@@ -83,12 +81,6 @@ def feature_creation_panel() -> dbc.Card:
 def correlation_heatmap(df: pd.DataFrame) -> dcc.Graph:
     """
     Generates a correlation heatmap graph component.
-
-    Args:
-        df (pd.DataFrame): The dataframe containing the data.
-
-    Returns:
-        dcc.Graph: A Dash Graph component with the heatmap.
     """
     corr = df.select_dtypes(include='number').corr()
     
@@ -105,7 +97,7 @@ def correlation_heatmap(df: pd.DataFrame) -> dcc.Graph:
 
 def map_visualization(df: pd.DataFrame) -> dcc.Graph:
     """
-    Generates a map visualization graph component.
+    Generates a map visualization graph component with Moscow focus and auto-scaled colors.
 
     Args:
         df (pd.DataFrame): The dataframe containing 'latitude', 'longitude', and 'price'.
@@ -114,17 +106,22 @@ def map_visualization(df: pd.DataFrame) -> dcc.Graph:
         dcc.Graph: A Dash Graph component with the map.
     """
     if 'latitude' in df.columns and 'longitude' in df.columns:
-        plot_df = df.sample(min(len(df), 2000), random_state=42)
+        plot_df = df.sample(min(len(df), 3000), random_state=42)
+        
+        upper_price_limit = df['price'].quantile(0.95)
         
         fig = px.scatter_mapbox(
             plot_df, 
             lat="latitude", lon="longitude", 
-            color="price", size="area",
+            color="price", 
+            size="area",
             color_continuous_scale=px.colors.cyclical.IceFire, 
+            range_color=[0, upper_price_limit],
             size_max=20,
             zoom=10,
+            center=MOSCOW_COORDS,
             mapbox_style="open-street-map",
-            title="Real Estate Geography"
+            title="Real Estate Geography (Color scaled to 95th percentile)"
         )
         fig.update_layout(margin={"r":0,"t":30,"l":0,"b":0}, height=800)
     else:

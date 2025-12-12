@@ -9,12 +9,11 @@ from dash import Input, Output, State, callback_context, Dash
 from typing import Tuple, List, Any
 from .state import state
 
+MOSCOW_COORDS = {"lat": 55.7558, "lon": 37.6173}
+
 def register_callbacks(app: Dash) -> None:
     """
     Registers all callback functions with the Dash application instance.
-
-    Args:
-        app (Dash): The initialized Dash application.
     """
     
     @app.callback(
@@ -26,9 +25,6 @@ def register_callbacks(app: Dash) -> None:
         [Input("url", "pathname")]
     )
     def init_controls(_: str) -> Tuple[List[dict], List[dict], List[dict], str, str]:
-        """
-        Populates dropdown menus based on the columns available in the state dataframe.
-        """
         df = state.df
         if df.empty:
             return [], [], [], None, None
@@ -47,16 +43,6 @@ def register_callbacks(app: Dash) -> None:
         Input("op-dropdown", "value")
     )
     def toggle_col_b(op: str) -> bool:
-        """
-        Disables the second column dropdown if the selected operation
-        is unary (requires only one operand).
-
-        Args:
-            op (str): The selected operation value.
-
-        Returns:
-            bool: True if Column B should be disabled, False otherwise.
-        """
         unary_ops = ["square", "sqrt", "log", "zscore"]
         return op in unary_ops
 
@@ -80,20 +66,8 @@ def register_callbacks(app: Dash) -> None:
         prevent_initial_call=True
     )
     def update_all_metrics(
-        viz_col: str, 
-        n_clicks: int, 
-        col_a: str, 
-        op: str, 
-        col_b: str, 
-        new_name: str
+        viz_col: str, n_clicks: int, col_a: str, op: str, col_b: str, new_name: str
     ) -> Any:
-        """
-        Main callback that handles both feature engineering and visual updates.
-
-        1. Checks triggers.
-        2. Applies mathematical operations (binary or unary) to create features.
-        3. Updates KPIs and Graphs.
-        """
         ctx = callback_context
         trigger = ctx.triggered[0]["prop_id"].split(".")[0]
         status_msg = ""
@@ -105,26 +79,18 @@ def register_callbacks(app: Dash) -> None:
         if trigger == "create-btn" and n_clicks:
             unary_ops = ["square", "sqrt", "log", "zscore"]
             is_valid = (col_a and new_name and op)
-            
             if op not in unary_ops and not col_b:
                 is_valid = False
 
             if is_valid:
                 try:
-                    if op == "add": 
-                        df[new_name] = df[col_a] + df[col_b]
-                    elif op == "sub": 
-                        df[new_name] = df[col_a] - df[col_b]
-                    elif op == "mul": 
-                        df[new_name] = df[col_a] * df[col_b]
-                    elif op == "div": 
-                        df[new_name] = df[col_a] / (df[col_b] + 1e-9)                    
-                    elif op == "square":
-                        df[new_name] = df[col_a] ** 2
-                    elif op == "sqrt":
-                        df[new_name] = np.sqrt(np.abs(df[col_a]))
-                    elif op == "log":
-                        df[new_name] = np.log1p(np.abs(df[col_a]))
+                    if op == "add": df[new_name] = df[col_a] + df[col_b]
+                    elif op == "sub": df[new_name] = df[col_a] - df[col_b]
+                    elif op == "mul": df[new_name] = df[col_a] * df[col_b]
+                    elif op == "div": df[new_name] = df[col_a] / (df[col_b] + 1e-9)
+                    elif op == "square": df[new_name] = df[col_a] ** 2
+                    elif op == "sqrt": df[new_name] = np.sqrt(np.abs(df[col_a]))
+                    elif op == "log": df[new_name] = np.log1p(np.abs(df[col_a]))
                     elif op == "zscore":
                         mean = df[col_a].mean()
                         std = df[col_a].std()
@@ -142,25 +108,34 @@ def register_callbacks(app: Dash) -> None:
         if viz_col and viz_col in df.columns:
             if pd.api.types.is_numeric_dtype(df[viz_col]):
                 fig_dist = px.histogram(
-                    df, x=viz_col, nbins=50, 
-                    title=f"Histogram of {viz_col}", 
-                    template="plotly_white"
+                    df, x=viz_col, nbins=100,
+                    title=f"Histogram of {viz_col}", template="plotly_white"
                 )
+                upper_limit = df[viz_col].quantile(0.99)
+                lower_limit = df[viz_col].quantile(0.01)
+                fig_dist.update_xaxes(range=[lower_limit, upper_limit])
             else:
                 fig_dist = px.bar(
-                    df[viz_col].value_counts().head(15), 
-                    title=f"Top 15 {viz_col}", 
-                    template="plotly_white"
+                    df[viz_col].value_counts().head(20), 
+                    title=f"Top 20 {viz_col}", template="plotly_white"
                 )
-            fig_dist.update_layout(height=500)
+            fig_dist.update_layout(height=600)
         else:
             fig_dist = px.histogram(template="plotly_white")
 
         if {'latitude', 'longitude', 'price', 'area'}.issubset(df.columns):
-            plot_df = df.sample(min(len(df), 2000), random_state=42)
+            plot_df = df.sample(min(len(df), 3000), random_state=42)
+            
+            upper_price_limit = df['price'].quantile(0.95)
+            
             fig_map = px.scatter_mapbox(
-                plot_df, lat="latitude", lon="longitude", color="price", size="area",
-                color_continuous_scale="Viridis", size_max=20, zoom=10, 
+                plot_df, lat="latitude", lon="longitude", 
+                color="price", size="area",
+                color_continuous_scale="Viridis", 
+                range_color=[0, upper_price_limit],
+                size_max=25,
+                zoom=10,
+                center=MOSCOW_COORDS,
                 mapbox_style="open-street-map"
             )
             fig_map.update_layout(margin={"r":0,"t":30,"l":0,"b":0}, height=800)

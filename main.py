@@ -94,6 +94,9 @@ def main():
     results.to_csv(report_path, index=False)
     logger.info(f"Results saved to {report_path}")
     
+    MODELS_DIR = BASE_DIR / "models"
+    trainer.save_best_model(output_dir=MODELS_DIR)
+    
     trainer.plot_metrics(output_dir=REPORTS_DIR)
 
     if not results.empty:

@@ -31,3 +31,6 @@ MANIFEST
 catboost_info/
 data/raw.csv
 .vscode/
+
+
+models/

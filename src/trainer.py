@@ -5,6 +5,7 @@ Module for managing the model training and evaluation process.
 from dataclasses import dataclass, asdict
 from typing import List
 from pathlib import Path
+import joblib
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -32,6 +33,7 @@ class TrainingResult:
     model_name: str
     r2_score: float
     mae: float
+    pipeline: Pipeline = None
 
 
 class Trainer:
@@ -125,6 +127,25 @@ class Trainer:
 
         return pd.DataFrame([vars(r) for r in self.results])
 
+    def save_best_model(self, output_dir: Path) -> None:
+        """
+        Saves the model with the highest R2 Score to disk.
+        
+        Args:
+            output_dir (Path): Directory to save the model.
+        """
+        if not self.results:
+            print("No models trained to save.")
+            return
+            
+        best_res = max(self.results, key=lambda x: x.r2_score)
+        
+        output_dir.mkdir(parents=True, exist_ok=True)
+        save_path = output_dir / "best_model.pkl"
+        
+        joblib.dump(best_res.pipeline, save_path)
+        print(f"Best model ({best_res.model_name}) saved to {save_path}")
+    
     def plot_metrics(self, output_dir: Path) -> None:
         """
         Generate and save plot of comparision models side-by-side.

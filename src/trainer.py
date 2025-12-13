@@ -119,7 +119,8 @@ class Trainer:
                 res = TrainingResult(
                     model_name=name,
                     r2_score=r2_score(y_test, preds),
-                    mae=mean_absolute_error(y_test, preds)
+                    mae=mean_absolute_error(y_test, preds),
+                    pipeline=pipeline
                 )
                 self.results.append(res)
             except Exception as e:

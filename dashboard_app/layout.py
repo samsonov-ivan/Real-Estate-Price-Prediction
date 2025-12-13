@@ -61,6 +61,16 @@ def create_layout() -> html.Div:
                                 dcc.Graph(id="corr-graph")
                             ]), className="mt-3 border-0 shadow-sm")
                         ]),
+                        dbc.Tab(label="Summary Statistics", tab_id="tab-summary", children=[
+                            dbc.Card(dbc.CardBody([
+                                html.Div(id="summary-table")
+                            ]), className="mt-3 border-0 shadow-sm")
+                        ]),
+                        dbc.Tab(label="Key Metrics", tab_id="tab-key-metrics", children=[
+                            dbc.Card(dbc.CardBody([
+                                dcc.Graph(id="key-metrics-graph")
+                            ]), className="mt-3 border-0 shadow-sm")
+                        ]),
                     ], id="tabs", active_tab="tab-dist")
                     
                 ], md=9)

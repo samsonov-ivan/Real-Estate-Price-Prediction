@@ -8,6 +8,7 @@ import plotly.express as px
 from dash import Input, Output, State, callback_context, Dash
 from typing import Tuple, List, Any
 from .state import state
+from .components import summary_table, key_metrics_graph
 
 MOSCOW_COORDS = {"lat": 55.7558, "lon": 37.6173}
 
@@ -43,7 +44,7 @@ def update_all_metrics(
     df = state.df
 
     if df.empty:
-            return "0", "0", "0", {}, {}, {}, "No Data", [], [], []
+            return "0", "0", "0", {}, {}, {}, {}, {}, "No Data", [], [], []
 
     if trigger == "create-btn" and n_clicks:
         unary_ops = ["square", "sqrt", "log", "zscore"]
@@ -118,12 +119,16 @@ def update_all_metrics(
     )
     fig_corr.update_layout(height=700)
 
+    summary_table_component = summary_table(df)
+    key_metrics_fig = key_metrics_graph(df).figure
+
     num_cols = df.select_dtypes(include='number').columns
     opts_num = [{"label": c, "value": c} for c in num_cols]
     opts_all = [{"label": c, "value": c} for c in df.columns]
 
     return (avg_price, str(len(df)), str(df.shape[1]), 
-            fig_dist, fig_map, fig_corr, status_msg,
+            fig_dist, fig_map, fig_corr, 
+            summary_table_component, key_metrics_fig, status_msg,
             opts_num, opts_num, opts_all)
 
 def register_callbacks(app: Dash) -> None:
@@ -152,6 +157,8 @@ def register_callbacks(app: Dash) -> None:
          Output("dist-graph", "figure"),
          Output("map-graph", "figure"),
          Output("corr-graph", "figure"),
+         Output("summary-table", "children"),
+         Output("key-metrics-graph", "figure"),
          Output("creation-status", "children"),
          Output("col-a-dropdown", "options", allow_duplicate=True),
          Output("col-b-dropdown", "options", allow_duplicate=True),

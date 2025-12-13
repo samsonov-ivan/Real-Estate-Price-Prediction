@@ -4,6 +4,7 @@ UI Components Module.
 
 from dash import dcc, html
 import dash_bootstrap_components as dbc
+import dash_table
 import plotly.express as px
 import pandas as pd
 
@@ -128,3 +129,40 @@ def map_visualization(df: pd.DataFrame) -> dcc.Graph:
         fig = px.scatter(title="Coordinates (latitude/longitude) not found in dataset")
         
     return dcc.Graph(id="map-graph", figure=fig)
+
+def summary_table(df: pd.DataFrame) -> dash_table.DataTable:
+    """
+    Generates a summary statistics table.
+    """
+    summary = df.describe().reset_index().round(2)
+    return dash_table.DataTable(
+        id='summary-table-inner',
+        data=summary.to_dict('records'),
+        columns=[{"name": i, "id": i} for i in summary.columns],
+        style_table={'overflowX': 'auto'},
+        style_cell={'textAlign': 'left', 'minWidth': '100px'},
+    )
+
+
+def key_metrics_graph(df: pd.DataFrame) -> dcc.Graph:
+    """
+    Generates a bar chart for key metrics like average price, median area, etc.
+    """
+    if 'price' in df.columns and 'area' in df.columns:
+        metrics = {
+            'Avg Price': df['price'].mean(),
+            'Median Price': df['price'].median(),
+            'Avg Area': df['area'].mean(),
+            'Median Area': df['area'].median(),
+            'Count': len(df)
+        }
+        metrics_df = pd.DataFrame(list(metrics.items()), columns=['Metric', 'Value'])
+        fig = px.bar(
+            metrics_df, x='Metric', y='Value',
+            title="Key Real Estate Metrics",
+            template="plotly_white"
+        )
+        fig.update_layout(height=600)
+    else:
+        fig = px.bar(title="Required columns (price/area) missing")
+    return dcc.Graph(id="key-metrics-graph", figure=fig)

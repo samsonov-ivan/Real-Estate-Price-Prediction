@@ -38,4 +38,33 @@ by regions.
 
 ---
 
+## How to run
+
+### 1. Model Training(Required first)
+Before running the API or Dashboard, you must train the models to generate the `best_model.pkl` file and process the initial data.
+
+```bash
+python main.py
+```
+Outputs: Saved model in models/ and reports in reports/
+
+### 2. Dashboard
+Launch the analytical dashboard for data exploration and feature engineering.
+
+```bash
+python run_dashboard.py
+```
+Open: http://127.0.0.1:8050
+
+### 3.Prediction API
+Start the FastAPI server to predict prices using the trained model.
+
+```bash
+python api.py
+```
+
+Web Interface: http://127.0.0.1:8000 (User-friendly form)
+API Docs: http://127.0.0.1:8000/docs (Swagger UI)
+---
+
 *By Samsonov Ivan*

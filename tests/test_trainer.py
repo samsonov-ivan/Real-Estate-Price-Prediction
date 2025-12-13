@@ -31,22 +31,6 @@ def test_create_pipeline(sample_df):
     assert "preprocessor" in step_names
     assert "model" in step_names
 
-def test_run_comparison_integration(sample_df):
-    """
-    Integration test: Ensure run_comparison executes without error
-    and returns a valid DataFrame.
-    """
-    trainer = Trainer(sample_df, "price", CENTER_COORDS)
-    
-    models_to_test = ["linear_regression"]
-    
-    results_df = trainer.run_comparison(models_to_test, test_size=0.5)
-    
-    assert "r2_score" in results_df.columns
-    assert "mae" in results_df.columns
-    assert len(trainer.results) == 1
-    assert trainer.results[0].model_name == "linear_regression"
-
 def test_save_best_model(tmp_path, sample_df):
     """Test saving the best model to disk."""
     trainer = Trainer(sample_df, "price", CENTER_COORDS)

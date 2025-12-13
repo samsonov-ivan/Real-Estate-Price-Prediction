@@ -7,6 +7,7 @@ Endpoints:
 """
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List
 from src.inference import ModelService
@@ -58,6 +59,10 @@ class PredictionResponse(BaseModel):
     """Schema for prediction output."""
     predicted_price: float
 
+@app.get("/")
+def read_root():
+    return FileResponse("static/index.html")
+
 @app.get("/health")
 def health_check():
     """Health check endpoint."""
@@ -86,3 +91,4 @@ def predict_price(apartments: List[ApartmentFeatures]):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+    

@@ -5,6 +5,7 @@ Handles loading trained models and performing predictions on new data.
 """
 
 import joblib
+import numpy as np
 import pandas as pd
 from pathlib import Path
 from typing import Union, List, Dict
@@ -44,6 +45,8 @@ class ModelService:
         
         try:
             predictions = self.model.predict(df)
-            return predictions.tolist()
+
+            predictions_real = np.expm1(predictions)
+            return predictions_real.tolist()
         except Exception as e:
             raise RuntimeError(f"Prediction failed: {e}")

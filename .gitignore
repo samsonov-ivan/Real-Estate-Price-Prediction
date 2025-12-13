@@ -33,6 +33,6 @@ data/raw.csv
 .vscode/
 .pytest_cache/
 .benchmarks/
-
+.coverage
 
 models/

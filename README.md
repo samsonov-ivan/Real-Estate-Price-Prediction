@@ -67,4 +67,10 @@ Web Interface: http://127.0.0.1:8000 (User-friendly form)
 API Docs: http://127.0.0.1:8000/docs (Swagger UI)
 ---
 
+
+## How to run tests
+
+```bash
+python -m pytest tests
+```
 *By Samsonov Ivan*

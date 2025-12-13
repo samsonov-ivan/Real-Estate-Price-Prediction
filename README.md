@@ -73,4 +73,14 @@ API Docs: http://127.0.0.1:8000/docs (Swagger UI)
 ```bash
 python -m pytest tests
 ```
+
+### View coverage
+```bash
+python -m pytest --cov=src --cov=api --cov=dashboard_app tests/
+```
+---
+
+![Python](https://img.shields.io/badge/python-3.9%2B-blue)
+![Coverage](https://img.shields.io/badge/coverage-92%25-green)
+![Status](https://img.shields.io/badge/status-active-success)
 *By Samsonov Ivan*

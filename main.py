@@ -15,6 +15,7 @@ from pathlib import Path
 
 from src.trainer import Trainer
 from src.utils import setup_logging
+from src.profiling import profiler
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
@@ -89,6 +90,17 @@ def main():
     print(results)
     print("="*50 + "\n")
 
+    profile_df = profiler.generate_report(REPORTS_DIR)
+    
+    if not profile_df.empty:
+        cols_to_show = ['function', 'avg_time', 'calls', 'suggestions']
+        print(profile_df[cols_to_show].head(3).to_string(index=False))
+        logger.info(f"Full performance report saved to {REPORTS_DIR / 'performance_profile.csv'}")
+    else:
+        print("No profiling data collected.")
+        
+    print("="*50 + "\n")
+
     report_path = REPORTS_DIR / "final_report.csv"
     
     results.to_csv(report_path, index=False)
@@ -96,7 +108,7 @@ def main():
     
     MODELS_DIR = BASE_DIR / "models"
     trainer.save_best_model(output_dir=MODELS_DIR)
-    
+
     trainer.plot_metrics(output_dir=REPORTS_DIR)
 
     if not results.empty:

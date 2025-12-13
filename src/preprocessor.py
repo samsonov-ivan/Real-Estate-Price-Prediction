@@ -8,6 +8,8 @@ import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from typing import Optional, List
 
+from .profiling import profiler
+
 
 class GeoDistanceTransformer(BaseEstimator, TransformerMixin):
     """
@@ -38,6 +40,7 @@ class GeoDistanceTransformer(BaseEstimator, TransformerMixin):
         """
         return self
 
+    @profiler.profile
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """
         Calculates the distance to the center and adds the 'distance_to_center' column.
@@ -60,6 +63,7 @@ class GeoDistanceTransformer(BaseEstimator, TransformerMixin):
         return X
 
     @staticmethod
+    @profiler.profile
     def _haversine(lat1: pd.Series, lon1: pd.Series, lat2: float, lon2: float) -> pd.Series:
         """
         Calculates the Haversine distance in kilometers.

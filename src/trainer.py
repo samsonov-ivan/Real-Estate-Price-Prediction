@@ -18,6 +18,7 @@ from sklearn.model_selection import train_test_split
 
 from .models import ModelFactory
 from .preprocessor import DataCleaner, GeoDistanceTransformer
+from .profiling import profiler
 
 
 @dataclass
@@ -53,6 +54,7 @@ class Trainer:
         self.center_coords = center_coords
         self.results: List[TrainingResult] = []
 
+    @profiler.profile
     def _create_pipeline(self, model_name: str) -> Pipeline:
         """
         Assembles the full processing and modeling pipeline.
@@ -90,6 +92,7 @@ class Trainer:
             ('model', model)
         ])
 
+    @profiler.profile
     def run_comparison(self, model_names: List[str], test_size: float = 0.2) -> pd.DataFrame:
         """
         Runs training for a list of models and returns a comparison.

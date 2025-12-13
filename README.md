@@ -29,10 +29,10 @@ Description: Compare models using standard metricks
 ---
 
 ### Iteration 2
-1. - [ ] **Prediction API** \
+1. - [x] **Prediction API** \
 Description: Accept request with apartment parameters and generate a price prediction.
 
-2. - [ ] **Dashboard** \
+2. - [x] **Dashboard** \
 Description: Dashboard with processing data, where is shown general metricks and parameters
 by regions.
 

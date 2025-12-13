@@ -1,0 +1,5 @@
+module,function,calls,total_time,avg_time,min_time,max_time,std_dev,suggestions
+src.trainer,run_comparison,1,9.357282899989514,9.357282899989514,9.357282899989514,9.357282899989514,0.0,Critical: Long execution time. Consider async processing or algorithmic optimization.
+src.preprocessor,transform,6,0.021573300007730722,0.0035955500012884536,0.0027298000059090555,0.005106199998408556,0.0005940999981248751,Performance is within nominal limits.
+src.preprocessor,_haversine,6,0.013445699936710298,0.002240949989451716,0.0017890000017359853,0.0029575999942608178,0.0002921499981312081,Performance is within nominal limits.
+src.trainer,_create_pipeline,3,0.0005376999906729907,0.00017923333022433022,8.72999953571707e-05,0.0003625999961514026,6.882500019855797e-05,Performance is within nominal limits.

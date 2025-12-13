@@ -7,6 +7,7 @@ from unittest.mock import patch
 from dashboard_app.state import AuditState, state
 from dashboard_app.callbacks import update_all_metrics
 import dash_bootstrap_components as dbc
+import dash_core_components as dcc
 
 from dashboard_app.app import app, server
 from dashboard_app.components import (
@@ -87,7 +88,39 @@ def test_singleton_pattern():
     assert not s2.df.empty
     assert s2.df.iloc[0]["test"] == 1
 
+def test_correlation_heatmap_no_numeric_columns():
+    """
+    Tests heatmap when the dataframe has no numeric columns.
+    """
+    df_str = pd.DataFrame({
+        "col1": ["a", "b"],
+        "col2": ["c", "d"]
+    })
+    
+    graph = correlation_heatmap(df_str)
+    
+    assert isinstance(graph, dcc.Graph)
+    assert graph.id == "corr-graph"
+    assert "data" in graph.figure
 
+def test_kpi_card_structure():
+    """
+    Deeper test of Bootstrap card structure.
+    """
+    title = "Revenue"
+    val_id = "rev-id"
+    card = kpi_card(title, val_id)
+    
+    assert "shadow-sm" in card.className
+    assert "h-100" in card.className
+    
+    body = card.children
+    title_el = body.children[0]
+    value_el = body.children[1]
+    
+    assert title_el.children == title
+    assert value_el.id == val_id
+    assert value_el.children == "Loading..."
 
 def test_callback_visualization_output(mock_state_df):
     """

@@ -34,5 +34,6 @@ data/raw.csv
 .pytest_cache/
 .benchmarks/
 .coverage
+reports/final_report.csv
 
 models/

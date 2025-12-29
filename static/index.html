@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real Estate Oracle</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #18bc9c;
+            --bg: #f4f7f6;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+        h1 {
+            color: var(--primary);
+            text-align: center;
+            margin-bottom: 1.5rem;
+            font-size: 1.8rem;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #666;
+            font-weight: 600;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            box-sizing: border-box;
+            transition: 0.3s;
+        }
+        input:focus {
+            border-color: var(--accent);
+            outline: none;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-top: 1rem;
+        }
+        button:hover {
+            background-color: #34495e;
+        }
+        #result {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background-color: var(--accent);
+            color: white;
+            border-radius: 8px;
+            text-align: center;
+            display: none;
+            animation: fadeIn 0.5s;
+        }
+        #result h2 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+        .row {
+            display: flex;
+            gap: 10px;
+        }
+        .col { flex: 1; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Price Predictor</h1>
+    <form id="predictForm">
+        <div class="row">
+            <div class="col form-group">
+                <label>Latitude</label>
+                <input type="number" step="0.0001" id="lat" value="55.7558" required>
+            </div>
+            <div class="col form-group">
+                <label>Longitude</label>
+                <input type="number" step="0.0001" id="lon" value="37.6173" required>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col form-group">
+                <label>Area (m²)</label>
+                <input type="number" id="area" value="45" required>
+            </div>
+            <div class="col form-group">
+                <label>Kitchen (m²)</label>
+                <input type="number" id="kitchen" value="10" required>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Rooms</label>
+            <input type="number" id="rooms" value="2" required>
+        </div>
+
+        <div class="row">
+            <div class="col form-group">
+                <label>Building Type</label>
+                <select id="building">
+                    <option value="0">Unknown (0)</option>
+                    <option value="1">Panel (1)</option>
+                    <option value="2">Brick (2)</option>
+                    <option value="3">Monolith (3)</option>
+                    <option value="4">Block (4)</option>
+                </select>
+            </div>
+            <div class="col form-group">
+                <label>Region ID</label>
+                <input type="number" id="region" value="77" placeholder="e.g. 77" required>
+            </div>
+        </div>
+
+        <button type="submit" id="btn">🔮 Calculate Price</button>
+    </form>
+
+    <div id="result">
+        <small>Estimated Value:</small>
+        <h2 id="priceValue">0 ₽</h2>
+    </div>
+</div>
+
+<script>
+    document.getElementById('predictForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('btn');
+        const resDiv = document.getElementById('result');
+        
+        btn.textContent = "Calculating...";
+        btn.disabled = true;
+        resDiv.style.display = 'none';
+
+        const data = [{
+            "latitude": parseFloat(document.getElementById('lat').value),
+            "longitude": parseFloat(document.getElementById('lon').value),
+            "area": parseFloat(document.getElementById('area').value),
+            "kitchen_area": parseFloat(document.getElementById('kitchen').value),
+            "rooms": parseInt(document.getElementById('rooms').value),
+            "building_type": parseInt(document.getElementById('building').value),
+            "id_region": parseInt(document.getElementById('region').value)
+        }];
+
+        try {
+            const response = await fetch('/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) throw new Error(await response.text());
+
+            const result = await response.json();
+            const price = result[0].predicted_price;
+
+            document.getElementById('priceValue').innerText = new Intl.NumberFormat('ru-RU', { 
+                style: 'currency', currency: 'RUB', maximumFractionDigits: 0 
+            }).format(price);
+            
+            resDiv.style.display = 'block';
+        } catch (err) {
+            alert("Error: " + err.message);
+        } finally {
+            btn.textContent = "Calculate Price";
+            btn.disabled = false;
+        }
+    });
+</script>
+
+</body>
+</html>

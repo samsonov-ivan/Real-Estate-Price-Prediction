@@ -31,3 +31,9 @@ MANIFEST
 catboost_info/
 data/raw.csv
 .vscode/
+.pytest_cache/
+.benchmarks/
+.coverage
+reports/final_report.csv
+
+models/

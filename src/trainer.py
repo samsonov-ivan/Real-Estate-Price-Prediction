@@ -1,143 +1,199 @@
 """
-Module for training and evaluating machine learning models for regression tasks.
+Module for managing the model training and evaluation process.
 """
 
-import os
+from dataclasses import dataclass, asdict
+from typing import List
+from pathlib import Path
+import joblib
 import pandas as pd
-import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
-from catboost import CatBoostRegressor
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.compose import ColumnTransformer
-from sklearn.metrics import r2_score, mean_absolute_error
-from sklearn.ensemble import RandomForestRegressor
 import matplotlib.pyplot as plt
-from typing import Dict, List
-from dataclasses import dataclass, field
+import seaborn as sns
+
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.metrics import r2_score, mean_absolute_error
+from sklearn.model_selection import train_test_split
+
+from .models import ModelFactory
+from .preprocessor import DataCleaner, GeoDistanceTransformer
+from .profiling import profiler
 
 
 @dataclass
-class ModelTrainer:
+class TrainingResult:
     """
-    A class to handle model training, evaluation, and selection for regression tasks.
-    """
-    models: Dict[str, Pipeline] = field(default_factory=dict)
-    results: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    Data class for storing training results of a single model.
 
-    def build_pipeline(self, model: str, cat_features: List[str], num_features: List[str]) -> Pipeline:
+    Attributes:
+        model_name (str): Name of the model.
+        r2_score (float): Coefficient of determination.
+        mae (float): Mean Absolute Error.
+    """
+    model_name: str
+    r2_score: float
+    mae: float
+    pipeline: Pipeline = None
+
+
+class Trainer:
+    """Orchestrator class for training and comparing models."""
+
+    def __init__(self, df: pd.DataFrame, target_col: str, center_coords: tuple):
         """
-        Build a machine learning pipeline with preprocessing and the given model.
+        Initializes the Trainer.
 
         Args:
-            model (str): Model type ('catboost', 'linear_regression', 'random_forest').
-            cat_features (List[str]): Categorical features.
-            num_features (List[str]): Numerical features.
+            df (pd.DataFrame): Source dataset.
+            target_col (str): Name of the target column.
+            center_coords (tuple): Coordinates (lat, lon) for feature generation.
+        """
+        self.df = df
+        self.target_col = target_col
+        self.center_coords = center_coords
+        self.results: List[TrainingResult] = []
+
+    @profiler.profile
+    def _create_pipeline(self, model_name: str) -> Pipeline:
+        """
+        Assembles the full processing and modeling pipeline.
+
+        Args:
+            model_name (str): Name of the model from ModelFactory.
 
         Returns:
-            Pipeline: Built pipeline.
+            Pipeline: A scikit-learn Pipeline ready for training.
         """
+        feature_eng_steps = [
+            ('cleaner', DataCleaner()),
+            ('geo_features', GeoDistanceTransformer(*self.center_coords))
+        ]
+
+        numeric_features = ['area', 'kitchen_area', 'distance_to_center']
+        if 'rooms' in self.df.columns:
+            numeric_features.append('rooms')
+            
+        categorical_features = ['building_type', 'id_region']
+
         preprocessor = ColumnTransformer(
             transformers=[
-                ('num', StandardScaler(), num_features),
-                ('cat', OneHotEncoder(handle_unknown='ignore'), cat_features)
-            ]
+                ('num', StandardScaler(), numeric_features),
+                ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features)
+            ],
+            remainder='drop' 
         )
-        if model == 'catboost':
-            cat_model = CatBoostRegressor(verbose=0)
-            pipeline = Pipeline(steps=[
-                ('preprocessor', preprocessor),
-                ('model', cat_model)
-            ])
-        elif model == 'linear_regression':
-            lin_model = LinearRegression()
-            pipeline = Pipeline(steps=[
-                ('preprocessor', preprocessor),
-                ('model', lin_model)
-            ])
-        elif model == 'random_forest':
-            rf_model = RandomForestRegressor()
-            pipeline = Pipeline(steps=[
-                ('preprocessor', preprocessor),
-                ('model', rf_model)
-            ])
-        else:
-            raise ValueError(f"Unsupported model type: {model}")
-        return pipeline
 
-    def train_and_evaluate(self, df: pd.DataFrame, target_column: str, test_size: float = 0.2, random_state: int = 42) -> pd.DataFrame:
+        model = ModelFactory.get_strategy(model_name)
+
+        return Pipeline(steps=[
+            *feature_eng_steps,
+            ('preprocessor', preprocessor),
+            ('model', model)
+        ])
+
+    @profiler.profile
+    def run_comparison(self, model_names: List[str], test_size: float = 0.2) -> pd.DataFrame:
         """
-        Train and evaluate models on the provided DataFrame.
+        Runs training for a list of models and returns a comparison.
 
         Args:
-            df (pd.DataFrame): Input data.
-            target_column (str): Target column name.
-            test_size (float): Test split size.
-            random_state (int): Random seed.
+            model_names (List[str]): List of model names to train.
+            test_size (float): Fraction of the dataset to use for testing.
 
         Returns:
-            pd.DataFrame: Results DataFrame.
+            pd.DataFrame: Table with metric results.
         """
-        X = df.drop(columns=[target_column])
-        y = df[target_column]
+        X = self.df.drop(columns=[self.target_col])
+        y = self.df[self.target_col]
+
         X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=test_size, random_state=random_state
+            X, y, test_size=test_size, random_state=42
         )
-        cat_features = X.select_dtypes(include=['object', 'category']).columns.tolist()
-        num_features = X.select_dtypes(include=['number']).columns.tolist()
-        for model_name in ['linear_regression', 'catboost', 'random_forest']:
-            pipeline = self.build_pipeline(model_name, cat_features, num_features)
-            pipeline.fit(X_train, y_train)
-            y_pred = pipeline.predict(X_test)
-            r2 = r2_score(y_test, y_pred)
-            mae = mean_absolute_error(y_test, y_pred)
-            self.models[model_name] = pipeline
-            self.results[model_name] = {'r2_score': r2, 'mae': mae}
-        self.plot_results()
-        results_df = pd.DataFrame(self.results).T
-        results_df['r2_score'] = results_df['r2_score'].round(4)
-        results_df['mae'] = results_df['mae'].round(0)
-        return results_df
 
-    def plot_results(self, save: bool = False, output_dir: str = '.') -> None:
+        for name in model_names:
+            print(f"Training model: {name}...")
+            pipeline = self._create_pipeline(name)
+            
+            try:
+                pipeline.fit(X_train, y_train)
+                preds = pipeline.predict(X_test)
+                
+                res = TrainingResult(
+                    model_name=name,
+                    r2_score=r2_score(y_test, preds),
+                    mae=mean_absolute_error(y_test, preds),
+                    pipeline=pipeline
+                )
+                self.results.append(res)
+            except Exception as e:
+                print(f"Error training {name}: {e}")
+
+        return pd.DataFrame([vars(r) for r in self.results])
+
+    def save_best_model(self, output_dir: Path) -> None:
         """
-        Plot the evaluation results of the trained models.
+        Saves the model with the highest R2 Score to disk.
+        
+        Args:
+            output_dir (Path): Directory to save the model.
+        """
+        if not self.results:
+            print("No models trained to save.")
+            return
+            
+        best_res = max(self.results, key=lambda x: x.r2_score)
+        
+        output_dir.mkdir(parents=True, exist_ok=True)
+        save_path = output_dir / "best_model.pkl"
+        
+        joblib.dump(best_res.pipeline, save_path)
+        print(f"Best model ({best_res.model_name}) saved to {save_path}")
+    
+    def plot_metrics(self, output_dir: Path) -> None:
+        """
+        Generate and save plot of comparision models side-by-side.
 
         Args:
-            save (bool): Whether to save the plot to file.
-            output_dir (str): Directory to save the plot.
-
-        Returns:
-            None
+            output_dir (Path): Path to plot saved folder.
         """
-        model_names = list(self.results.keys())
-        r2_scores = [self.results[model]['r2_score'] for model in model_names]
-        maes = [self.results[model]['mae'] for model in model_names]
-        x = np.arange(len(model_names))
-        width = 0.35
-        fig, ax1 = plt.subplots()
-        bars1 = ax1.bar(x - width/2, r2_scores, width, label='R2 Score', color='b')
-        ax1.set_ylabel('R2 Score')
-        ax1.set_ylim(0, 1)
-        ax1.set_xticks(x)
-        ax1.set_xticklabels(model_names)
-        ax1.legend(loc='upper left')
-        ax2 = ax1.twinx()
-        bars2 = ax2.bar(x + width/2, maes, width, label='MAE', color='r')
-        ax2.set_ylabel('Mean Absolute Error')
-        ax2.legend(loc='upper right')
-        plt.title('Model Evaluation Results')
-        if save:
-            os.makedirs(output_dir, exist_ok=True)
-            plt.savefig(os.path.join(output_dir, 'model_comparison.png'))
+        if not self.results:
+            print("No results to plot.")
+            return
+
+        df_res = pd.DataFrame([asdict(r) for r in self.results])
+        output_dir.mkdir(parents=True, exist_ok=True)
+        save_path = output_dir / "model_comparison.png" 
+
+        sns.set_theme(style="whitegrid")
+        
+        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+        ax1 = axes[0]
+        sns.barplot(
+            data=df_res, x='model_name', y='r2_score', 
+            ax=ax1, palette="viridis", alpha=0.8
+        )
+        ax1.set_title('Сравнение метрики R2 Score', fontsize=12, fontweight='bold')
+        ax1.set_ylabel('R2 Score', fontweight='bold')
+        ax1.set_xlabel('Название модели')
+        ax1.set_ylim(0, 1.0)
+        ax1.tick_params(axis='x', rotation=45) 
+
+        ax2 = axes[1]
+        sns.barplot(
+            data=df_res, x='model_name', y='mae', 
+            ax=ax2, palette="magma", alpha=0.8
+        )
+        ax2.set_title('Сравнение метрики MAE (Mean Absolute Error)', fontsize=12, fontweight='bold')
+        ax2.set_ylabel('Mean Absolute Error (MAE)', fontweight='bold')
+        ax2.set_xlabel('Название модели')
+        ax2.tick_params(axis='x', rotation=45) 
+        
+        fig.suptitle('Сравнение моделей: R2 Score vs MAE', fontsize=16, y=1.05) 
+
+        plt.tight_layout()
+        
+        plt.savefig(save_path, dpi=300)
         plt.close()
-
-    def get_results(self) -> pd.DataFrame:
-        """
-        Get the evaluation results of the trained models.
-
-        Returns:
-            pd.DataFrame: Results DataFrame.
-        """
-        return pd.DataFrame(self.results)
+        print(f"Comparison plot saved to {save_path}")

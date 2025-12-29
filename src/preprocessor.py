@@ -1,134 +1,140 @@
 """
-Module for data preprocessing, including handling missing values and feature engineering.
+Module for data preprocessing and feature generation.
+Contains transformer classes compatible with scikit-learn Pipelines.
 """
 
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
-from typing import Tuple, Any, Optional
+from typing import Optional, List
+
+from .profiling import profiler
 
 
-class CustomPreprocessor(BaseEstimator, TransformerMixin):
+class GeoDistanceTransformer(BaseEstimator, TransformerMixin):
     """
-    A custom preprocessor for handling missing values and scaling numerical features.
-
-    This preprocessor fills missing values for categorical and numerical features,
-    engineers a new feature (distance to city center), and scales numerical features.
+    Transformer for calculating Haversine distance to a specific point.
     """
 
-    def __init__(self, city_center_coords: Tuple[float, float] = (55.7558, 37.6173)) -> None:
+    def __init__(self, center_lat: float, center_lon: float):
         """
-        Initialize the preprocessor.
+        Initializes the transformer with center coordinates.
 
         Args:
-            city_center_coords (Tuple[float, float]): Coordinates of the city center. Defaults to Moscow.
-
-        Returns:
-            None
+            center_lat (float): Latitude of the central point.
+            center_lon (float): Longitude of the central point.
         """
-        self.city_center_coords = city_center_coords
-        self.cat_features: list[str] = ['building_type', 'id_region']
-        self.fill_values_: dict[str, Any] = {}
+        self.center_lat = center_lat
+        self.center_lon = center_lon
 
-    def clean_data(self, X: pd.DataFrame) -> pd.DataFrame:
+    def fit(self, X: pd.DataFrame, y: Optional[pd.Series] = None) -> 'GeoDistanceTransformer':
         """
-        Clean the data by handling missing values and infinities.
+        Fit method (does nothing, returns self).
 
         Args:
             X (pd.DataFrame): Input data.
+            y (pd.Series, optional): Target variable.
 
         Returns:
-            pd.DataFrame: Cleaned data.
+            GeoDistanceTransformer: The instance itself.
         """
-        # Additional cleaning steps can be added here if necessary
+        return self
+
+    @profiler.profile
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """
+        Calculates the distance to the center and adds the 'distance_to_center' column.
+
+        Args:
+            X (pd.DataFrame): Input dataframe.
+
+        Returns:
+            pd.DataFrame: Dataframe with the new feature.
+        """
         X = X.copy()
+        if not {'latitude', 'longitude'}.issubset(X.columns):
+            rename_dict = {'geo_lat': 'latitude', 'geo_lon': 'longitude'}
+            X = X.rename(columns=rename_dict)
+            
         if {'latitude', 'longitude'}.issubset(X.columns):
-            X = X.dropna(subset=['latitude', 'longitude'])
-        X = X.replace([np.inf, -np.inf], np.nan)
-        for col in self.cat_features:
-            if col in X.columns:
-                mode = X[col].mode()
-                fill = mode.iloc[0] if not mode.empty else 'unknown'
-                X[col] = X[col].fillna(fill)
-        if 'area' in X.columns:
-            X['area'] = X['area'].fillna(X['area'].mean())
-        if 'kitchen_area' in X.columns:
-            X['kitchen_area'] = X['kitchen_area'].fillna(X['kitchen_area'].mean())
-        if 'rooms' in X.columns:
-            X['rooms'] = X['rooms'].fillna(X['rooms'].median())
-        if 'living_area' not in X.columns and 'area' in X.columns:
-            X['living_area'] = X['area'] * 0.6
-        elif 'living_area' in X.columns:
-            if 'area' in X.columns:
-                X['living_area'] = X['living_area'].fillna(X['area'] * 0.6)
-            else:
-                X['living_area'] = X['living_area'].fillna(X['living_area'].median())
-        for col in X.columns:
-            if X[col].isnull().any():
-                if pd.api.types.is_numeric_dtype(X[col]):
-                    X[col] = X[col].fillna(X[col].median())
-                else:
-                    X[col] = X[col].fillna('unknown')
+            X['distance_to_center'] = self._haversine(
+                X['latitude'], X['longitude'], self.center_lat, self.center_lon
+            )
         return X
 
-    def fit(self, X: pd.DataFrame, y: Optional[Any] = None) -> 'CustomPreprocessor':
+    @staticmethod
+    @profiler.profile
+    def _haversine(lat1: pd.Series, lon1: pd.Series, lat2: float, lon2: float) -> pd.Series:
         """
-        Fit the preprocessor to the data.
+        Calculates the Haversine distance in kilometers.
 
         Args:
-            X (pd.DataFrame): Input data.
-            y (Optional[Any]): Target values (ignored).
+            lat1, lon1: Series of point coordinates.
+            lat2, lon2: Coordinates of the fixed point.
 
         Returns:
-            CustomPreprocessor: Fitted preprocessor.
+            pd.Series: Distances in km.
         """
-        self.fill_values_ = {
-            'building_type': X['building_type'].mode()[0],
-            'id_region': X['id_region'].mode()[0],
-            'rooms': X['rooms'].median(),
-            'living_area': X['area'].mean() * 0.6,
-            'kitchen_area': X['kitchen_area'].mean()
-        }
+        R = 6371  # Earth radius in km
+        dlat = np.radians(lat2 - lat1)
+        dlon = np.radians(lon2 - lon1)
+        a = (np.sin(dlat / 2) ** 2 +
+             np.cos(np.radians(lat1)) * np.cos(np.radians(lat2)) * np.sin(dlon / 2) ** 2)
+        c = 2 * np.arcsin(np.sqrt(a))
+        return R * c
+
+
+class DataCleaner(BaseEstimator, TransformerMixin):
+    """
+    Transformer for data cleaning: imputing missing values, removing infinities.
+    """
+
+    def __init__(self) -> None:
+        self.fill_values_: dict = {}
+        self.numeric_cols_: List[str] = []
+        self.categorical_cols_: List[str] = []
+
+    def fit(self, X: pd.DataFrame, y: Optional[pd.Series] = None) -> 'DataCleaner':
+        """
+        Computes medians and modes for imputing missing values.
+
+        Args:
+            X (pd.DataFrame): Training data.
+            y (pd.Series, optional): Target variable.
+
+        Returns:
+            DataCleaner: Fitted instance.
+        """
+        self.numeric_cols_ = X.select_dtypes(include='number').columns.tolist()
+        self.categorical_cols_ = X.select_dtypes(exclude='number').columns.tolist()
+
+        if 'rooms' in X.columns:
+            self.fill_values_['rooms'] = X['rooms'].median()
+        
+        for col in self.numeric_cols_:
+            if col not in self.fill_values_:
+                self.fill_values_[col] = X[col].median()
+        
+        for col in self.categorical_cols_:
+            self.fill_values_[col] = 'unknown'
+            
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """
-        Transform the data.
+        Applies cleaning to the data.
 
         Args:
-            X (pd.DataFrame): Input data.
+            X (pd.DataFrame): Input dataframe.
 
         Returns:
-            pd.DataFrame: Transformed data.
+            pd.DataFrame: Cleaned dataframe.
         """
         X = X.copy()
-        # Fill missing values
-        for feature, fill_value in self.fill_values_.items():
-            if feature in self.cat_features:
-                X[feature] = X[feature].fillna(fill_value)
-        # Feature engineering: distance to city center
-        def haversine(lat1: np.ndarray, lon1: np.ndarray, lat2: float, lon2: float) -> np.ndarray:
-            """
-            Calculate haversine distance.
+        X = X.replace([np.inf, -np.inf], np.nan)
 
-            Args:
-                lat1 (np.ndarray): Latitudes.
-                lon1 (np.ndarray): Longitudes.
-                lat2 (float): City center latitude.
-                lon2 (float): City center longitude.
-
-            Returns:
-                np.ndarray: Distances.
-            """
-            R = 6371  # Earth radius in kilometers
-            dlat = np.radians(lat2 - lat1)
-            dlon = np.radians(lon2 - lon1)
-            a = (np.sin(dlat / 2) ** 2 +
-                 np.cos(np.radians(lat1)) * np.cos(np.radians(lat2)) * np.sin(dlon / 2) ** 2)
-            c = 2 * np.arcsin(np.sqrt(a))
-            return R * c
-        X['distance_to_center'] = haversine(
-            X['latitude'], X['longitude'],
-            self.city_center_coords[0], self.city_center_coords[1]
-        )
+        for col, value in self.fill_values_.items():
+            if col in X.columns:
+                X[col] = X[col].fillna(value)
+        
         return X
